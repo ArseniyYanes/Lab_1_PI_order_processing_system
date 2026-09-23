@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Новый заказ</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background:#f5f6f8; color:#1f2933; display:flex; min-height:100vh; margin:0; align-items:center; justify-content:center; }
+    .card { background:#fff; padding:2rem; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,.08); width:360px; }
+    h1 { margin:0 0 1rem; font-size:1.4rem; }
+    label { display:block; margin:.75rem 0 .25rem; font-size:.9rem; font-weight:600; }
+    input { width:100%; padding:.5rem .6rem; border:1px solid #cbd2d9; border-radius:8px; box-sizing:border-box; font-size:1rem; }
+    button { margin-top:1rem; width:100%; padding:.6rem; border:0; border-radius:8px; background:#1f6feb; color:#fff; font-size:1rem; cursor:pointer; }
+    button:disabled { opacity:.6; }
+    #result { margin-top:1rem; font-size:.85rem; white-space:pre-wrap; background:#0f172a; color:#e2e8f0; padding:.75rem; border-radius:8px; display:none; }
+    .ok { color:#4ade80; } .err { color:#f87171; }
+  </style>
+</head>
+<body>
+  <form id="order-form" class="card">
+    <h1>Новый заказ</h1>
+    <label for="buyer">Покупатель</label>
+    <input id="buyer" name="buyer" required placeholder="Иван">
+    <label for="product">Товар</label>
+    <input id="product" name="product" required placeholder="Виджет">
+    <label for="amount">Сумма</label>
+    <input id="amount" name="amount" type="number" step="0.01" min="0" required placeholder="99.5">
+    <button type="submit" id="submit-btn">Оформить заказ</button>
+    <div id="result"></div>
+  </form>
+
+  <script>
+    const form = document.getElementById('order-form');
+    const result = document.getElementById('result');
+    const btn = document.getElementById('submit-btn');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      result.style.display = 'block';
+      const payload = {
+        buyer: form.buyer.value.trim(),
+        product: form.product.value.trim(),
+        amount: parseFloat(form.amount.value),
+      };
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        result.className = res.ok ? 'ok' : 'err';
+        result.textContent = res.ok
+          ? 'Заказ принят\n' + JSON.stringify(data, null, 2)
+          : 'Ошибка: ' + JSON.stringify(data, null, 2);
+      } catch (err) {
+        result.className = 'err';
+        result.textContent = 'Сетевая ошибка: ' + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
