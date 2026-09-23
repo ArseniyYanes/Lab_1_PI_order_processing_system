@@ -126,12 +126,16 @@ services:
       MYSQL_DATABASE: orders_db
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       KAFKA_TOPIC: "order-events"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      RABBITMQ_QUEUE: "order-notifications"
     ports:
       - "5000:5000"
     depends_on:
       mysql:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - backend

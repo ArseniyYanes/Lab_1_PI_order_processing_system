@@ -1,15 +1,17 @@
 """Flask service: accepts orders (POST /api/orders).
 
-Step 5: for each order we
+For each order we:
   1. store it in MySQL (table `orders`) and get the generated order_id;
   2. publish an event to the Kafka topic `order-events`, using order_id
-     as the message key so events of one order stay on one partition.
-
-The RabbitMQ notification (step 6) will be added to this same handler.
+     as the message key so events of one order stay on one partition;
+  3. send a short text notification to the RabbitMQ queue
+     `order-notifications` (consumed by the worker added in step 8).
 """
 import json
 import logging
+import time
 
+import pika
 import pymysql
 from flask import Flask, jsonify, request
 from kafka import KafkaProducer
@@ -37,6 +39,48 @@ def _get_producer():
         )
         logger.info("Kafka producer ready -> %s (topic=%s)", env.kafka_bootstrap(), env.KAFKA_TOPIC)
     return _producer
+
+
+def _notify_rabbitmq(order_id: int, event: dict) -> None:
+    """Publish a short text notification to the RabbitMQ queue `order-notifications`.
+
+    A short-lived blocking connection is opened per notification: the lab
+    traffic is tiny and this keeps the code trivially thread-safe under the
+    threaded Flask dev server. Retries absorb the case where the broker is
+    still starting up.
+    """
+    message = (
+        f"Order #{order_id} accepted: {event['buyer']} ordered '{event['product']}' "
+        f"for {event['amount']:.2f} - delivery will be prepared shortly"
+    )
+    last_exc = None
+    for attempt in range(3):
+        try:
+            connection = pika.BlockingConnection(pika.URLParameters(env.rabbitmq_url()))
+            try:
+                channel = connection.channel()
+                # Declare the queue so it is visible in RabbitMQ Management
+                # as soon as the first order arrives (the worker re-declares
+                # the same queue with the same parameters in step 8).
+                channel.queue_declare(queue=env.RABBITMQ_QUEUE, durable=True)
+                channel.basic_publish(
+                    exchange="",
+                    routing_key=env.RABBITMQ_QUEUE,
+                    body=message.encode("utf-8"),
+                    # delivery_mode=2 -> message persists until acked
+                    properties=pika.BasicProperties(delivery_mode=2),
+                )
+                logger.info(
+                    "RabbitMQ notification published to %s: %s", env.RABBITMQ_QUEUE, message
+                )
+            finally:
+                connection.close()
+            return
+        except Exception as exc:
+            last_exc = exc
+            logger.warning("RabbitMQ publish attempt %s/3 failed: %s", attempt + 1, exc)
+            time.sleep(1)
+    raise RuntimeError(f"RabbitMQ notification failed after 3 attempts: {last_exc}")
 
 
 @app.route("/api/health", methods=["GET"])
@@ -87,6 +131,13 @@ def create_order():
     except Exception as exc:  # order is already safely in MySQL
         logger.exception("order saved to MySQL but Kafka publish failed")
         return jsonify(order_id=order_id, error=f"Kafka publish failed: {exc}"), 502
+
+    # 3) Send a short text notification to RabbitMQ (worker picks it up in step 8).
+    try:
+        _notify_rabbitmq(order_id, event)
+    except Exception as exc:  # order is already in MySQL and in Kafka
+        logger.exception("order saved to MySQL and Kafka, but RabbitMQ notification failed")
+        return jsonify(order_id=order_id, error=f"RabbitMQ notification failed: {exc}"), 502
 
     return jsonify(order_id=order_id, **event), 201
 
