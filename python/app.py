@@ -139,7 +139,7 @@ def create_order():
         logger.exception("order saved to MySQL and Kafka, but RabbitMQ notification failed")
         return jsonify(order_id=order_id, error=f"RabbitMQ notification failed: {exc}"), 502
 
-    return jsonify(order_id=order_id, **event), 201
+    return jsonify(event), 201
 
 
 if __name__ == "__main__":

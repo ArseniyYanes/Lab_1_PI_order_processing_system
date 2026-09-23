@@ -50,7 +50,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       retries: 20
@@ -66,12 +66,12 @@ services:
       - backend
     restart: "no"
     command: >
-      kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists
       --topic order-events --partitions 3 --replication-factor 1
       && echo "topic order-events created with 3 partitions"
 
   kafka-ui:
-    image: redpanda-data/kafka-ui:latest
+    image: provectuslabs/kafka-ui:latest
     container_name: lab_kafka_ui
     restart: unless-stopped
     depends_on:
@@ -145,6 +145,26 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+
+  # ===== P2 (RabbitMQ engineer) =====
+  # RabbitMQ worker (step 8): consumes the durable queue `order-notifications`
+  # and "delivers" the text notifications (logged to the container console).
+  rabbitmq-worker:
+    image: lab-python:py311
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: lab_rabbitmq_worker
+    restart: unless-stopped
+    command: ["python", "rabbit_worker.py"]
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      RABBITMQ_QUEUE: "order-notifications"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
 
 volumes:
   mysql_data:
