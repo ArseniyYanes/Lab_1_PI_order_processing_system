@@ -87,6 +87,28 @@ services:
     networks:
       - backend
 
+  # ===== P2 (RabbitMQ engineer) =====
+  # RabbitMQ with Management plugin: AMQP 5672 + web UI 15672.
+  # Healthcheck: node check -> service only becomes "healthy" when the broker is fully up.
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: lab_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"     # AMQP (default guest:guest)
+      - "15672:15672"   # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping >/dev/null 2>&1 && rabbitmq-diagnostics -q check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
 volumes:
   mysql_data:
   kafka_data:
