@@ -22,8 +22,74 @@ services:
       retries: 10
       start_period: 40s
 
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: lab_kafka
+    hostname: kafka
+    restart: unless-stopped
+    environment:
+      CLUSTER_ID: "MkU3OEVBNTcwMTJERTRjQ"
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "controller,broker"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "CONTROLLER://:9093,PLAINTEXT://:9092,EXTERNAL://:29092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+    ports:
+      - "29092:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  kafka-init:
+    image: apache/kafka:3.7.0
+    container_name: lab_kafka_init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: "no"
+    command: >
+      kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists
+      --topic order-events --partitions 3 --replication-factor 1
+      && echo "topic order-events created with 3 partitions"
+
+  kafka-ui:
+    image: redpanda-data/kafka-ui:latest
+    container_name: lab_kafka_ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "8002:8090"
+    environment:
+      KAFKA_UI_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+      KAFKA_UI_CLUSTERS_0_NAME: "lab-cluster"
+    networks:
+      - backend
+
 volumes:
   mysql_data:
+  kafka_data:
 
 networks:
   backend:
