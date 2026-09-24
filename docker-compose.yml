@@ -9,7 +9,7 @@ services:
       MYSQL_USER: app
       MYSQL_PASSWORD: apppass
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -44,7 +44,7 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
     ports:
-      - "29092:29092"
+      - "29093:29092"
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
     ports:
       - "5672:5672"     # AMQP (default guest:guest)
-      - "15672:15672"   # Management UI
+      - "15673:15672"   # Management UI
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -129,7 +129,7 @@ services:
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
       RABBITMQ_QUEUE: "order-notifications"
     ports:
-      - "5000:5000"
+      - "5001:5000"
     depends_on:
       mysql:
         condition: service_healthy
