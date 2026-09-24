@@ -189,6 +189,26 @@ services:
       retries: 10
       start_period: 15s
 
+  # ===== P1 (Kafka engineer) =====
+  # Kafka consumer #1 (step 9): payment processing, runs in its own
+  # consumer group `payment-group` and reads the whole `order-events` stream.
+  kafka-consumer-payment:
+    image: lab-python:py311
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: lab_kafka_consumer_payment
+    restart: unless-stopped
+    command: ["python", "payment_consumer.py"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC: "order-events"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - backend
+
 volumes:
   mysql_data:
   kafka_data:
