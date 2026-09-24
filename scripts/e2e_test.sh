@@ -68,13 +68,26 @@ for g in payment-group delivery-group; do
     | grep -E '^GROUP|order-events' | head -5 || true
 done
 
-echo "== 6. Kafka consumers processed the orders (logs) =="
-docker compose logs kafka-consumer-payment 2>&1 | grep -q "payment processed for order #" \
-  && ok "payment consumer logged processed orders" \
-  || ko "payment consumer has no 'payment processed' lines"
-docker compose logs kafka-consumer-delivery 2>&1 | grep -q "доставка по order_id=" \
-  && ok "delivery consumer logged prepared deliveries" \
-  || ko "delivery consumer has no 'доставка по order_id' lines"
+echo "== 6. Kafka consumers processed the new orders (logs) =="
+last_id="$(docker compose exec -T mysql mysql -uapp -papppass orders_db -N -s \
+  -e "SELECT MAX(id) FROM orders" 2>/dev/null)"
+echo "   waiting for consumers to log order #${last_id} (poll up to 15s) ..."
+pfound=0
+for _ in $(seq 1 15); do
+  docker compose logs kafka-consumer-payment 2>&1 | grep -q "payment processed for order #${last_id} " && pfound=1 && break
+  sleep 1
+done
+[ "$pfound" -eq 1 ] \
+  && ok "payment consumer logged processed orders (incl. #${last_id})" \
+  || ko "payment consumer has no 'payment processed for order #${last_id}' line"
+dfound=0
+for _ in $(seq 1 15); do
+  docker compose logs kafka-consumer-delivery 2>&1 | grep -q "доставка по order_id=${last_id} " && dfound=1 && break
+  sleep 1
+done
+[ "$dfound" -eq 1 ] \
+  && ok "delivery consumer logged prepared deliveries (incl. order_id=${last_id})" \
+  || ko "delivery consumer has no 'доставка по order_id=${last_id}' line"
 
 echo "== 7. RabbitMQ worker delivered the notifications =="
 wlog="$(docker compose logs rabbitmq-worker 2>&1 || true)"
