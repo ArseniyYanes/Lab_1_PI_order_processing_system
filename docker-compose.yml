@@ -80,10 +80,15 @@ services:
       kafka-init:
         condition: service_completed_successfully
     ports:
-      - "8002:8090"
+      - "8002:8080"
     environment:
-      KAFKA_UI_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
-      KAFKA_UI_CLUSTERS_0_NAME: "lab-cluster"
+      # This image version defines clusters through the `kafka.clusters`
+      # Spring property, i.e. the env vars KAFKA_CLUSTERS_0_*. The old
+      # KAFKA_UI_CLUSTERS_0_* names are silently ignored, so the built-in
+      # localhost cluster from the embedded application.yml stayed in place
+      # and the UI showed no usable cluster.
+      KAFKA_CLUSTERS_0_NAME: "lab-cluster"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
     networks:
       - backend
 
