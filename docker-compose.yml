@@ -166,6 +166,30 @@ services:
     networks:
       - backend
 
+  # ===== P2 (RabbitMQ engineer) =====
+  # Kafka consumer #2 (step 10): "delivery" side, consumer group `delivery-group`.
+  # Reads the same topic `order-events` independently of any other consumer
+  # group and logs that delivery for each order_id has been prepared.
+  kafka-consumer-delivery:
+    image: lab-python:py311
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: lab_kafka_consumer_delivery
+    restart: unless-stopped
+    command: ["python", "kafka_consumer_delivery.py"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC: "order-events"
+      KAFKA_GROUP: "delivery-group"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+
   # ===== P1 (Kafka engineer) =====
   # nginx: serves the static HTML form (web/) and proxies /api/* to the Flask service.
   nginx:
